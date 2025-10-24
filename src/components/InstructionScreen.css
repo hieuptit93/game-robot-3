@@ -1,0 +1,72 @@
+.instruction-screen {
+  background: radial-gradient(ellipse at center, #1a1a2e 0%, #16213e 50%, #0f0f23 100%);
+  position: relative;
+}
+
+.instructions-container {
+  display: flex;
+  gap: 30px;
+  margin: 30px 0;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.instruction-item {
+  background: rgba(0, 0, 0, 0.8);
+  padding: 25px;
+  border-radius: 15px;
+  border: 2px solid #48cae4;
+  min-width: 300px;
+  text-align: center;
+}
+
+.key-demo {
+  margin-bottom: 15px;
+}
+
+.key {
+  background: linear-gradient(45deg, #ff6b6b, #ee5a24);
+  color: white;
+  padding: 10px 15px;
+  border-radius: 8px;
+  font-weight: bold;
+  font-size: 1.2rem;
+  display: inline-block;
+  margin: 0 5px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+}
+
+.instruction-text h3 {
+  color: #feca57;
+  margin-bottom: 10px;
+  font-size: 1.3rem;
+}
+
+.instruction-text p {
+  color: #fff;
+  margin: 5px 0;
+  font-size: 1rem;
+}
+
+.warning-box {
+  background: rgba(255, 107, 107, 0.2);
+  border: 2px solid #ff6b6b;
+  padding: 20px;
+  border-radius: 15px;
+  margin: 30px 0;
+  max-width: 500px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.warning-box h3 {
+  color: #ff6b6b;
+  margin-bottom: 15px;
+  font-size: 1.3rem;
+}
+
+.warning-box p {
+  color: #fff;
+  margin: 8px 0;
+  font-size: 1rem;
+}

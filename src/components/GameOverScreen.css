@@ -1,0 +1,79 @@
+.game-over-screen {
+  background: radial-gradient(ellipse at center, #2c1810 0%, #8b0000 50%, #000000 100%);
+  position: relative;
+}
+
+.explosion-bg {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  background: 
+    radial-gradient(circle at 20% 80%, rgba(255, 107, 107, 0.3) 0%, transparent 50%),
+    radial-gradient(circle at 80% 20%, rgba(238, 90, 36, 0.3) 0%, transparent 50%),
+    radial-gradient(circle at 40% 40%, rgba(255, 193, 7, 0.2) 0%, transparent 50%);
+  animation: explosion-flicker 2s infinite;
+}
+
+@keyframes explosion-flicker {
+  0%, 100% { opacity: 0.7; }
+  50% { opacity: 1; }
+}
+
+.game-over-icon {
+  font-size: 5rem;
+  margin-bottom: 20px;
+  animation: shake 0.5s infinite;
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-5px); }
+  75% { transform: translateX(5px); }
+}
+
+.reason {
+  font-size: 1.3rem;
+  color: #ff6b6b;
+  margin-bottom: 30px;
+  font-weight: bold;
+}
+
+.final-stats {
+  background: rgba(0, 0, 0, 0.8);
+  padding: 25px;
+  border-radius: 15px;
+  border: 2px solid #ff6b6b;
+  margin: 30px 0;
+  min-width: 300px;
+}
+
+.stat-item {
+  display: flex;
+  justify-content: space-between;
+  margin: 15px 0;
+  font-size: 1.2rem;
+}
+
+.stat-label {
+  color: #fff;
+}
+
+.stat-value {
+  color: #feca57;
+  font-weight: bold;
+}
+
+.encouragement {
+  background: rgba(255, 107, 107, 0.2);
+  border: 2px solid #ff6b6b;
+  padding: 20px;
+  border-radius: 15px;
+  margin: 30px 0;
+  max-width: 400px;
+}
+
+.encouragement p {
+  color: #fff;
+  font-size: 1.1rem;
+  margin: 0;
+}
