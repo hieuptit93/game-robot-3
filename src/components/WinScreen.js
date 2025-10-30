@@ -1,7 +1,7 @@
 import React from 'react';
 import './WinScreen.css';
 
-const WinScreen = ({ score, altitude, onRestart }) => {
+const WinScreen = ({ checkpointsPassed, altitude, onRestart }) => {
   return (
     <div className="win-screen screen">
       <div className="celebration-bg"></div>
@@ -14,8 +14,8 @@ const WinScreen = ({ score, altitude, onRestart }) => {
           <div className="achievement-item">
             <div className="achievement-icon">🎯</div>
             <div className="achievement-text">
-              <h3>Điểm hoàn hảo</h3>
-              <p>{score}/10 câu trả lời đúng liên tiếp</p>
+              <h3>Trạm hoàn hảo</h3>
+              <p>{checkpointsPassed}/10 trạm kiểm soát đã qua</p>
             </div>
           </div>
           

@@ -4,12 +4,12 @@ import spaceshipImage from '../assets/images/spaceship.png';
 
 const GameScreen = ({
   altitude,
-  score,
+  checkpointsPassed,
   timeLeft,
   playerYPosition,
   playerRotation,
   isAnimating,
-  currentWord,
+  currentWordData,
   isRecording,
   isListening,
   isProcessing,
@@ -22,23 +22,32 @@ const GameScreen = ({
   showPowerUpEffect,
   collisionCount,
   showExplosion,
+  audioLevel,
+  streak
 
 }) => {
   return (
     <div className={`game-screen ${showCollision ? 'collision-screen' : ''}`}>
       {/* Header */}
       <div className="game-header">
-        <div className="altitude-indicator">
+        <div className={`altitude-indicator ${altitude <= 2000 ? 'low-altitude' : ''}`}>
           <span className="label">Độ cao:</span>
           <span className="value">{altitude.toLocaleString()} km</span>
+          {altitude <= 2000 && <span className="warning-icon">⚠️</span>}
         </div>
         <div className="timer">
           <span className="label">Thời gian:</span>
           <span className="value">{timeLeft}</span>
         </div>
-        <div className="score">
-          <span className="label">Điểm:</span>
-          <span className="value">{score}/10</span>
+        <div className="checkpoints">
+          <span className="label">Trạm:</span>
+          <span className="value">{checkpointsPassed}/10</span>
+          <div className="checkpoint-progress">
+            <div 
+              className="checkpoint-fill" 
+              style={{ width: `${(checkpointsPassed / 10) * 100}%` }}
+            ></div>
+          </div>
         </div>
         <div className="collision-counter">
           <span className="label">Va chạm:</span>
@@ -58,7 +67,7 @@ const GameScreen = ({
         </div>
 
         <div
-          className={`player-ship ${isAnimating ? 'animating' : ''} ${score === 10 ? 'final-flight' : ''} ${showCollision ? 'collision' : ''} ${showPowerUpEffect ? 'power-up-boost' : ''} ${showExplosion ? 'exploding' : ''}`}
+          className={`player-ship ${isAnimating ? 'animating' : ''} ${checkpointsPassed === 10 ? 'final-flight' : ''} ${showCollision ? 'collision' : ''} ${showPowerUpEffect ? 'power-up-boost' : ''} ${showExplosion ? 'exploding' : ''}`}
           style={{
             top: `${playerYPosition}%`,
             transform: `rotate(${playerRotation}deg)`,
@@ -110,6 +119,14 @@ const GameScreen = ({
           </div>
         )}
 
+        {/* Ground Proximity Warning */}
+        {altitude <= 1000 && altitude > 0 && (
+          <div className="ground-warning">
+            <div className="warning-text">⚠️ CẢNH BÁO ĐỘ CAO THẤP! ⚠️</div>
+            <div className="warning-subtext">Nói to để máy bay bốc lên!</div>
+          </div>
+        )}
+
         {/* Explosion Effect */}
         {showExplosion && (
           <div className="explosion-container">
@@ -128,8 +145,8 @@ const GameScreen = ({
           </div>
         )}
 
-        {/* Finish Line - appears when score reaches 9 */}
-        {score >= 9 && (
+        {/* Finish Line - appears when checkpoints reaches 9 */}
+        {checkpointsPassed >= 9 && (
           <div className="finish-line">
             <div className="finish-flag">🏁</div>
             <div className="finish-text">ĐÍCH</div>
@@ -158,7 +175,10 @@ const GameScreen = ({
       <div className="game-footer">
         <div className="footer-content">
           <div className="word-display">
-            <span className="current-word">{currentWord}</span>
+            <div className="word-container">
+              <span className="current-word">{currentWordData.word}</span>
+              <span className="phonetic-transcription">{currentWordData.phonetic}</span>
+            </div>
           </div>
 
           <div className="status-display">
@@ -169,6 +189,24 @@ const GameScreen = ({
                     isWaitingForPronunciation ? '⏳ Chờ' :
                       '✅ Sẵn sàng'}
             </span>
+
+            {/* Real-time Audio Visualizer */}
+            {(isListening || isRecording) && (
+              <div className="audio-visualizer">
+                <div className="audio-bars">
+                  {[...Array(5)].map((_, i) => (
+                    <div 
+                      key={i}
+                      className={`audio-bar ${isRecording ? 'active' : ''}`}
+                      style={{
+                        height: `${Math.max(20, Math.min(100, (audioLevel || 0) + (i * 10) + Math.random() * 20))}%`,
+                        animationDelay: `${i * 0.1}s`
+                      }}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
 
             {lastResult && (
               <span className={`pronunciation-score ${lastResult.total_score * 100 >= 50 ? 'correct' : 'incorrect'}`}>

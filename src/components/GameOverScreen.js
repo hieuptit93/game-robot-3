@@ -1,7 +1,7 @@
 import React from 'react';
 import './GameOverScreen.css';
 
-const GameOverScreen = ({ score, altitude, onRestart }) => {
+const GameOverScreen = ({ checkpointsPassed, altitude, onRestart }) => {
   const getGameOverReason = () => {
     if (altitude <= 0) {
       return {
@@ -30,8 +30,8 @@ const GameOverScreen = ({ score, altitude, onRestart }) => {
         
         <div className="final-stats">
           <div className="stat-item">
-            <span className="stat-label">Điểm cuối cùng:</span>
-            <span className="stat-value">{score}/10</span>
+            <span className="stat-label">Trạm đã qua:</span>
+            <span className="stat-value">{checkpointsPassed}/10</span>
           </div>
           <div className="stat-item">
             <span className="stat-label">Độ cao cuối:</span>

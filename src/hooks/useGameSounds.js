@@ -272,6 +272,33 @@ class SoundGenerator {
     });
   }
 
+  // Tạo âm thanh cảnh báo độ cao thấp
+  playAltitudeWarning() {
+    if (!this.audioContext) return;
+    
+    this.ensureContext();
+    
+    // Beeping sound cho cảnh báo
+    const oscillator = this.audioContext.createOscillator();
+    const gainNode = this.audioContext.createGain();
+    
+    oscillator.connect(gainNode);
+    gainNode.connect(this.masterGain);
+    
+    oscillator.frequency.value = 800;
+    oscillator.type = 'square';
+    
+    // Beep pattern: on-off-on-off
+    gainNode.gain.setValueAtTime(0, this.audioContext.currentTime);
+    gainNode.gain.linearRampToValueAtTime(0.1, this.audioContext.currentTime + 0.05);
+    gainNode.gain.linearRampToValueAtTime(0, this.audioContext.currentTime + 0.15);
+    gainNode.gain.linearRampToValueAtTime(0.1, this.audioContext.currentTime + 0.25);
+    gainNode.gain.linearRampToValueAtTime(0, this.audioContext.currentTime + 0.35);
+    
+    oscillator.start(this.audioContext.currentTime);
+    oscillator.stop(this.audioContext.currentTime + 0.4);
+  }
+
   // Tạo âm thanh game over
   playGameOverSound() {
     if (!this.audioContext) return;
@@ -344,6 +371,10 @@ export const useGameSounds = () => {
     soundGeneratorRef.current?.playGameOverSound();
   }, []);
 
+  const playAltitudeWarning = useCallback(() => {
+    soundGeneratorRef.current?.playAltitudeWarning();
+  }, []);
+
   return {
     playPowerUpSound,
     playCollisionSound,
@@ -351,6 +382,7 @@ export const useGameSounds = () => {
     playBackgroundMusic,
     stopBackgroundMusic,
     playWinSound,
-    playGameOverSound
+    playGameOverSound,
+    playAltitudeWarning
   };
 };

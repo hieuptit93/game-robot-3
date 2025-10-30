@@ -17,10 +17,10 @@ const GAME_STATES = {
 };
 
 const INITIAL_ALTITUDE = 10000;
-const ALTITUDE_GAIN = 800; // Tăng từ 500 lên 800 để bay nhanh hơn
-const ALTITUDE_LOSS = 1200; // Tăng từ 1000 lên 1200 để lao xuống nhanh hơn
+const ALTITUDE_GAIN = 1400; // Tăng lên 1200 để bay cao hơn khi trả lời đúng
+const ALTITUDE_LOSS = 1400; // Tăng từ 1000 lên 1200 để lao xuống nhanh hơn
 const WIN_SCORE = 10;
-const INITIAL_TIME = 120; // 2 minutes
+const INITIAL_TIME = 140; // 2 minutes
 
 function App() {
     const [gameState, setGameState] = useState(GAME_STATES.START);
@@ -38,12 +38,42 @@ function App() {
     const [showExplosion, setShowExplosion] = useState(false); // Hiệu ứng nổ tung
 
 
-    // Pronunciation words for the game
-    const words = [
-        'Landscape', 'Position', 'Indicator', 'Effect', 'Computer',
-        'Programming', 'Development', 'Technology', 'Explosion', 'Future'
+    // Easy aviation vocabulary with simple phonetic transcriptions
+    const aviationWords = [
+        { word: 'Plane', phonetic: '/pleɪn/' },
+        { word: 'Fly', phonetic: '/flaɪ/' },
+        { word: 'Sky', phonetic: '/skaɪ/' },
+        { word: 'Wing', phonetic: '/wɪŋ/' },
+        { word: 'Pilot', phonetic: '/ˈpaɪlət/' },
+        { word: 'Cloud', phonetic: '/klaʊd/' },
+        { word: 'High', phonetic: '/haɪ/' },
+        { word: 'Fast', phonetic: '/fæst/' },
+        { word: 'Blue', phonetic: '/blu/' },
+        { word: 'Wind', phonetic: '/wɪnd/' },
+        { word: 'Air', phonetic: '/ɛr/' },
+        { word: 'Up', phonetic: '/ʌp/' },
+        { word: 'Down', phonetic: '/daʊn/' },
+        { word: 'Go', phonetic: '/goʊ/' },
+        { word: 'Stop', phonetic: '/stɑp/' },
+        { word: 'Safe', phonetic: '/seɪf/' },
+        { word: 'Land', phonetic: '/lænd/' },
+        { word: 'Take', phonetic: '/teɪk/' },
+        { word: 'Off', phonetic: '/ɔf/' },
+        { word: 'Big', phonetic: '/bɪg/' },
+        { word: 'Small', phonetic: '/smɔl/' },
+        { word: 'White', phonetic: '/waɪt/' },
+        { word: 'Red', phonetic: '/rɛd/' },
+        { word: 'Green', phonetic: '/grin/' },
+        { word: 'Yellow', phonetic: '/ˈjɛloʊ/' },
+        { word: 'Sun', phonetic: '/sʌn/' },
+        { word: 'Moon', phonetic: '/mun/' },
+        { word: 'Star', phonetic: '/stɑr/' },
+        { word: 'Light', phonetic: '/laɪt/' },
+        { word: 'Bright', phonetic: '/braɪt/' }
     ];
-    const [currentWord, setCurrentWord] = useState(words[0]);
+    const [currentWordData, setCurrentWordData] = useState(aviationWords[0]);
+    const [checkpointsPassed, setCheckpointsPassed] = useState(0);
+    const [gravity, setGravity] = useState(0); // Gravity effect
     const [isWaitingForPronunciation, setIsWaitingForPronunciation] = useState(false);
 
     // Initialize pronunciation scoring hook with manual mode for better control
@@ -72,7 +102,8 @@ function App() {
         playBackgroundMusic,
         stopBackgroundMusic,
         playWinSound,
-        playGameOverSound
+        playGameOverSound,
+        playAltitudeWarning
     } = useGameSounds();
 
     // Force cleanup microphone function
@@ -106,10 +137,10 @@ function App() {
 
     // Handle pronunciation analysis manually
     const handleAnalyzePronunciation = useCallback(async (audioBlob) => {
-        if (!audioBlob || !currentWord) return;
+        if (!audioBlob || !currentWordData.word) return;
 
         try {
-            const result = await processPronunciation(currentWord, audioBlob);
+            const result = await processPronunciation(currentWordData.word, audioBlob);
             if (result && result.total_score !== undefined) {
                 if (result.total_score * 100 >= 50) {
                     handleCorrectAnswer();
@@ -124,15 +155,15 @@ function App() {
             handleWrongAnswer();
         }
         setIsWaitingForPronunciation(false);
-    }, [currentWord, processPronunciation]);
+    }, [currentWordData.word, processPronunciation]);
 
     // Monitor recording state to trigger analysis
     useEffect(() => {
         if (recordingBlob && !isRecording && !isProcessing && isWaitingForPronunciation && gameState === GAME_STATES.PLAYING) {
-            console.log('🎯 Auto-analyzing recorded audio for word:', currentWord);
+            console.log('🎯 Auto-analyzing recorded audio for word:', currentWordData.word);
             handleAnalyzePronunciation(recordingBlob);
         }
-    }, [recordingBlob, isRecording, isProcessing, isWaitingForPronunciation, gameState, currentWord, handleAnalyzePronunciation]);
+    }, [recordingBlob, isRecording, isProcessing, isWaitingForPronunciation, gameState, currentWordData.word, handleAnalyzePronunciation]);
 
     // Timer effect
     useEffect(() => {
@@ -167,6 +198,52 @@ function App() {
         return () => clearInterval(timer);
     }, [gameState, timeLeft]);
 
+    // Gravity effect - plane naturally falls down with smooth animation
+    useEffect(() => {
+        let gravityTimer;
+        if (gameState === GAME_STATES.PLAYING) {
+            gravityTimer = setInterval(() => {
+                setAltitude(prev => {
+                    const gravityForce = 15; // Much slower gravity for better gameplay
+                    const newAltitude = Math.max(0, prev - gravityForce);
+                    
+                    // Add subtle rotation effect when falling
+                    if (!isAnimating) {
+                        setPlayerRotation(prevRotation => {
+                            const targetRotation = Math.min(15, (INITIAL_ALTITUDE - newAltitude) / 500);
+                            return prevRotation + (targetRotation - prevRotation) * 0.1;
+                        });
+                    }
+                    
+                    // Play altitude warning sound when low
+                    if (newAltitude <= 1000 && newAltitude > 0 && prev > 1000) {
+                        playAltitudeWarning();
+                    }
+                    
+                    if (newAltitude <= 0) {
+                        // Stop background music and VAD when altitude reaches 0
+                        stopBackgroundMusic();
+                        if (isListening) {
+                            console.log('🛑 Force stopping VAD due to altitude = 0');
+                            stopListening().catch(error => {
+                                console.log('VAD stop error on altitude 0:', error);
+                            });
+                        }
+                        setIsWaitingForPronunciation(false);
+                        clearBlob();
+                        setTimeout(() => {
+                            playGameOverSound();
+                        }, 500);
+                        setGameState(GAME_STATES.GAME_OVER);
+                        return 0;
+                    }
+                    return newAltitude;
+                });
+            }, 150); // Smoother gravity updates
+        }
+        return () => clearInterval(gravityTimer);
+    }, [gameState, isListening, stopListening, clearBlob, stopBackgroundMusic, playGameOverSound, isAnimating]);
+
     // Update player position based on altitude
     useEffect(() => {
         const newPosition = Math.max(10, Math.min(90, 90 - (altitude / INITIAL_ALTITUDE) * 80));
@@ -175,7 +252,7 @@ function App() {
 
     // Handle VAD listening
     const handleStartListening = useCallback(async () => {
-        console.log('🎤 Attempting to start VAD listening for word:', currentWord, {
+        console.log('🎤 Attempting to start VAD listening for word:', currentWordData.word, {
             gameState,
             isListening,
             isWaitingForPronunciation
@@ -197,7 +274,7 @@ function App() {
             }
         }
 
-        console.log('✅ Starting VAD listening for word:', currentWord);
+        console.log('✅ Starting VAD listening for word:', currentWordData.word);
         setIsWaitingForPronunciation(true);
         clearBlob(); // Clear any previous recording
 
@@ -207,7 +284,7 @@ function App() {
             console.error('Start listening error:', error);
             setIsWaitingForPronunciation(false);
         }
-    }, [gameState, isListening, startListening, stopListening, clearBlob, currentWord, isWaitingForPronunciation]);
+    }, [gameState, isListening, startListening, stopListening, clearBlob, currentWordData.word, isWaitingForPronunciation]);
 
     const handleStopListening = useCallback(async () => {
         if (!isListening) return;
@@ -255,7 +332,7 @@ function App() {
             collected: false
         }]);
 
-        // Chờ đến khi power-up "va chạm" với máy bay (70% của animation = 1.05s)
+        // Chờ đến khi power-up "va chạm" với máy bay (70% của animation = 0.56s)
         setTimeout(() => {
             // Play power-up sound
             playPowerUpSound();
@@ -264,11 +341,11 @@ function App() {
             setShowPowerUpEffect(true);
             setTimeout(() => setShowPowerUpEffect(false), 1000);
 
-            // Cập nhật altitude và score khi ăn được power-up
+            // Cập nhật altitude và checkpoints khi ăn được power-up
             setAltitude(prev => prev + ALTITUDE_GAIN);
-            setScore(prev => {
-                const newScore = prev + 1;
-                if (newScore >= WIN_SCORE) {
+            setCheckpointsPassed(prev => {
+                const newCheckpoints = prev + 1;
+                if (newCheckpoints >= WIN_SCORE) {
                     // Stop background music and play win sound
                     stopBackgroundMusic();
                     setTimeout(() => {
@@ -288,7 +365,7 @@ function App() {
                         setGameState(GAME_STATES.WIN);
                     }, 1500);
                 }
-                return newScore;
+                return newCheckpoints;
             });
 
             // Plane animation - realistic climb with physics
@@ -313,7 +390,7 @@ function App() {
         // Animation bình năng lượng di chuyển và biến mất
         setTimeout(() => {
             setPowerUps(prev => prev.filter(p => p.id !== powerUpId));
-        }, 1500);
+        }, 800);
 
         // Reset for next word - chờ sau khi animation hoàn thành
         setTimeout(async () => {
@@ -330,7 +407,7 @@ function App() {
             // Wait for cleanup
             await new Promise(resolve => setTimeout(resolve, 1000));
 
-            setCurrentWord(words[Math.floor(Math.random() * words.length)]);
+            setCurrentWordData(aviationWords[Math.floor(Math.random() * aviationWords.length)]);
             clearBlob();
             setIsWaitingForPronunciation(false);
 
@@ -339,8 +416,8 @@ function App() {
                 console.log('🎤 Auto-restarting VAD for next word');
                 handleStartListening();
             }, 1000);
-        }, 2200); // 1050ms (collision) + 600ms (animation) + 550ms (buffer)
-    }, [words, clearBlob, stopListening, handleStartListening]);
+        }, 1200); // 560ms (collision) + 400ms (animation) + 240ms (buffer)
+    }, [aviationWords, clearBlob, stopListening, handleStartListening]);
 
     const handleWrongAnswer = useCallback(() => {
         // Tạo vật cản hướng về máy bay với một chút biến thể
@@ -355,7 +432,7 @@ function App() {
             hit: false
         }]);
 
-        // Chờ đến khi vật cản "va chạm" với máy bay (70% của animation = 1.05s)
+        // Chờ đến khi vật cản "va chạm" với máy bay (70% của animation = 0.56s)
         setTimeout(() => {
             // Tăng số lần va chạm
             setCollisionCount(prev => {
@@ -426,7 +503,7 @@ function App() {
                         }
                         return newAltitude;
                     });
-                    setScore(0); // Reset score for consecutive correct answers
+                    // Don't reset checkpoints on wrong answer - keep progress
 
                     // Plane animation - realistic nose dive with physics
                     setIsAnimating(true);
@@ -461,7 +538,7 @@ function App() {
         // Animation vật cản di chuyển và biến mất
         setTimeout(() => {
             setObstacles(prev => prev.filter(o => o.id !== obstacleId));
-        }, 1500);
+        }, 800);
 
         // Reset for next word - chờ sau khi animation hoàn thành (chỉ khi chưa nổ tung)
         setTimeout(async () => {
@@ -480,7 +557,7 @@ function App() {
                     setTimeout(async () => {
                         await new Promise(resolve => setTimeout(resolve, 1000));
 
-                        setCurrentWord(words[Math.floor(Math.random() * words.length)]);
+                        setCurrentWordData(aviationWords[Math.floor(Math.random() * aviationWords.length)]);
                         clearBlob();
                         setIsWaitingForPronunciation(false);
 
@@ -493,8 +570,8 @@ function App() {
                 }
                 return currentCount;
             });
-        }, 2550); // 1050ms (collision) + 750ms (animation) + 750ms (buffer)
-    }, [words, clearBlob, stopListening, handleStartListening]);
+        }, 1400); // 560ms (collision) + 500ms (animation) + 340ms (buffer)
+    }, [aviationWords, clearBlob, stopListening, handleStartListening]);
 
     const startGame = () => {
         setGameState(GAME_STATES.INSTRUCTIONS);
@@ -503,13 +580,13 @@ function App() {
     const startPlaying = () => {
         setGameState(GAME_STATES.PLAYING);
         setAltitude(INITIAL_ALTITUDE);
-        setScore(0);
+        setCheckpointsPassed(0);
         setTimeLeft(INITIAL_TIME);
         setPlayerRotation(0);
         setIsAnimating(false);
         setCollisionCount(0);
         setShowExplosion(false);
-        setCurrentWord(words[Math.floor(Math.random() * words.length)]);
+        setCurrentWordData(aviationWords[Math.floor(Math.random() * aviationWords.length)]);
 
         // Start background music
         setTimeout(() => {
@@ -544,7 +621,7 @@ function App() {
 
         setGameState(GAME_STATES.START);
         setAltitude(INITIAL_ALTITUDE);
-        setScore(0);
+        setCheckpointsPassed(0);
         setTimeLeft(INITIAL_TIME);
         setPlayerRotation(0);
         setIsAnimating(false);
@@ -577,12 +654,12 @@ function App() {
             {gameState === GAME_STATES.PLAYING && (
                 <GameScreen
                     altitude={altitude}
-                    score={score}
+                    checkpointsPassed={checkpointsPassed}
                     timeLeft={formatTime(timeLeft)}
                     playerYPosition={playerYPosition}
                     playerRotation={playerRotation}
                     isAnimating={isAnimating}
-                    currentWord={currentWord}
+                    currentWordData={currentWordData}
                     isRecording={isRecording}
                     isListening={isListening}
                     isProcessing={isProcessing}
@@ -601,7 +678,7 @@ function App() {
 
             {gameState === GAME_STATES.GAME_OVER && (
                 <GameOverScreen
-                    score={score}
+                    checkpointsPassed={checkpointsPassed}
                     altitude={altitude}
                     onRestart={resetGame}
                 />
@@ -609,7 +686,7 @@ function App() {
 
             {gameState === GAME_STATES.WIN && (
                 <WinScreen
-                    score={score}
+                    checkpointsPassed={checkpointsPassed}
                     altitude={altitude}
                     onRestart={resetGame}
                 />
