@@ -5,8 +5,10 @@ import InstructionScreen from './components/InstructionScreen';
 import GameScreen from './components/GameScreen';
 import GameOverScreen from './components/GameOverScreen';
 import WinScreen from './components/WinScreen';
+import SurveyModal from './components/SurveyModal';
 import { usePronunciationScoring } from './hooks/usePronunciationScoring';
 import { useGameSounds } from './hooks/useGameSounds';
+import { supabase } from './lib/supabaseClient';
 
 const GAME_STATES = {
     START: 'start',
@@ -76,6 +78,14 @@ function App() {
     const [gravity, setGravity] = useState(0); // Gravity effect
     const [isWaitingForPronunciation, setIsWaitingForPronunciation] = useState(false);
 
+    // URL params and session management
+    const [urlParams, setUrlParams] = useState({});
+    const [userId, setUserId] = useState(null);
+    const [age, setAge] = useState(null);
+    const [gameId, setGameId] = useState(null);
+    const [gameSessionId, setGameSessionId] = useState(null);
+    const [isSurveyOpen, setIsSurveyOpen] = useState(false);
+
     // Initialize pronunciation scoring hook with manual mode for better control
     const {
         isRecording,
@@ -133,7 +143,158 @@ function App() {
         }
     }, [isListening, stopListening, clearBlob]);
 
+    // Parse URL params once on mount
+    useEffect(() => {
+        try {
+            const params = new URLSearchParams(window.location.search);
+            const all = {};
+            params.forEach((value, key) => {
+                all[key] = value;
+            });
+            // Extract dedicated fields
+            const extractedUserId = all.user_id ?? all.userId ?? null;
+            const extractedAgeRaw = all.age ?? null;
+            const extractedGameId = all.game_id ?? all.gameId ?? null;
 
+            if (extractedUserId != null) setUserId(extractedUserId);
+            if (extractedGameId != null) setGameId(extractedGameId);
+            if (extractedAgeRaw != null) {
+                const n = Number(extractedAgeRaw);
+                setAge(Number.isFinite(n) ? n : extractedAgeRaw);
+            }
+
+            // Remove extracted keys from general params
+            const { user_id, userId, age: ageKey, game_id, gameId, ...rest } = all;
+            setUrlParams(rest);
+        } catch (e) {
+            // noop
+        }
+    }, []);
+
+    // Create a game_session row only when game actually starts
+    useEffect(() => {
+        const createSession = async () => {
+            if (gameState !== GAME_STATES.PLAYING) return;
+            if (gameSessionId) return; // Already have a session
+            if (!userId) return; // Need userId to create session
+
+            const numericAge = Number.isFinite(Number(age)) ? Number(age) : null;
+            const numericGameId = Number.isFinite(Number(gameId)) ? Number(gameId) : null;
+
+            const payload = {
+                user_id: userId,
+                age: numericAge,
+                game_id: numericGameId,
+                start_time: new Date().toISOString(),
+                score: 0,
+                profile_data: urlParams || {}
+            };
+
+            try {
+                const { data, error } = await supabase
+                    .from('game_sessions')
+                    .insert(payload)
+                    .select('id')
+                    .single();
+
+                if (error) {
+                    console.error('Failed to create game session:', error);
+                    return;
+                }
+
+                setGameSessionId(data?.id || null);
+                console.log('Created game session:', data?.id);
+            } catch (err) {
+                console.error('Unexpected error creating game session:', err);
+            }
+        };
+
+        createSession();
+    }, [gameState, userId, age, gameId, urlParams, gameSessionId]);
+
+    // Open survey when game over ONLY if user hasn't completed survey for this game before
+    useEffect(() => {
+        const checkAndOpenSurvey = async () => {
+            if (gameState !== GAME_STATES.WIN && gameState !== GAME_STATES.GAME_OVER) {
+                setIsSurveyOpen(false);
+                return;
+            }
+            
+            console.log('🔍 Checking survey display:', { gameState, gameSessionId, userId, gameId, checkpointsPassed });
+            
+            try {
+                const numericGameId = Number.isFinite(Number(gameId)) ? Number(gameId) : null;
+
+                // If we know the user and game, check historical completion
+                if (userId && numericGameId != null) {
+                    const { data: history, error: historyError } = await supabase
+                        .from('game_sessions')
+                        .select('id')
+                        .eq('user_id', userId)
+                        .eq('game_id', numericGameId)
+                        .eq('survey_completed', true)
+                        .limit(1);
+
+                    if (!historyError && Array.isArray(history) && history.length > 0) {
+                        // User already completed survey for this game before → do not show
+                        console.log('❌ Survey already completed for this user and game. Not showing.');
+                        setIsSurveyOpen(false);
+                        return;
+                    }
+                }
+
+                // Fallback to current session's completion flag if available
+                if (gameSessionId) {
+                    const { data, error } = await supabase
+                        .from('game_sessions')
+                        .select('survey_completed')
+                        .eq('id', gameSessionId)
+                        .single();
+                    if (!error && data) {
+                        const completed = Boolean(data?.survey_completed);
+                        console.log('📊 Current session survey_completed:', completed, 'Setting isSurveyOpen to:', !completed);
+                        setIsSurveyOpen(!completed);
+                        return;
+                    } else {
+                        console.log('⚠️ Could not fetch current session, will show survey');
+                    }
+                } else {
+                    console.log('⚠️ No gameSessionId, will show survey');
+                }
+
+                // Default: show if we couldn't verify completion
+                console.log('✅ Showing survey (default - no restrictions found)');
+                setIsSurveyOpen(true);
+            } catch (e) {
+                console.error('⚠️ Error checking survey completion:', e);
+                console.log('✅ Showing survey (fallback due to error)');
+                setIsSurveyOpen(true);
+            }
+        };
+
+        // Add small delay to ensure end_time update completes first
+        const timer = setTimeout(() => {
+            checkAndOpenSurvey();
+        }, 200);
+        
+        return () => clearTimeout(timer);
+    }, [gameState, gameSessionId, userId, gameId, checkpointsPassed]);
+
+    // When game ends, update end_time and final score on the session
+    useEffect(() => {
+        const markEndTime = async () => {
+            if ((gameState !== GAME_STATES.WIN && gameState !== GAME_STATES.GAME_OVER) || !gameSessionId) return;
+            try {
+                await supabase
+                    .from('game_sessions')
+                    .update({ end_time: new Date().toISOString(), score: checkpointsPassed })
+                    .eq('id', gameSessionId);
+            } catch (e) {
+                // noop
+            }
+        };
+        markEndTime();
+    }, [gameState, gameSessionId, checkpointsPassed]);
 
     // Handle pronunciation analysis manually
     const handleAnalyzePronunciation = useCallback(async (audioBlob) => {
@@ -578,6 +739,8 @@ function App() {
     };
 
     const startPlaying = () => {
+        // Reset gameSessionId to create a new session
+        setGameSessionId(null);
         setGameState(GAME_STATES.PLAYING);
         setAltitude(INITIAL_ALTITUDE);
         setCheckpointsPassed(0);
@@ -641,14 +804,39 @@ function App() {
         return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
     };
 
+    const handleCloseSurvey = useCallback(() => {
+        setIsSurveyOpen(false);
+    }, []);
+
+    const handlePlayAgain = useCallback(() => {
+        setIsSurveyOpen(false);
+        resetGame();
+    }, []);
+
+    const handleExitGame = useCallback(async () => {
+        // Update game_sessions to mark that user exited via button
+        if (gameSessionId) {
+            try {
+                await supabase
+                    .from('game_sessions')
+                    .update({ exited_via_button: true, end_time: new Date().toISOString(), score: checkpointsPassed })
+                    .eq('id', gameSessionId);
+            } catch (e) {
+                console.error('Error updating exited_via_button:', e);
+            }
+        }
+        // Redirect after updating
+        window.location.href = 'https://robot-record-web.hacknao.edu.vn/games';
+    }, [gameSessionId, checkpointsPassed]);
+
     return (
         <div className="App">
             {gameState === GAME_STATES.START && (
-                <StartScreen onStart={startGame} />
+                <StartScreen onStart={startGame} onExit={handleExitGame} />
             )}
 
             {gameState === GAME_STATES.INSTRUCTIONS && (
-                <InstructionScreen onStart={startPlaying} />
+                <InstructionScreen onStart={startPlaying} onExit={handleExitGame} />
             )}
 
             {gameState === GAME_STATES.PLAYING && (
@@ -672,24 +860,50 @@ function App() {
                     showPowerUpEffect={showPowerUpEffect}
                     collisionCount={collisionCount}
                     showExplosion={showExplosion}
-
+                    onExit={handleExitGame}
                 />
             )}
 
             {gameState === GAME_STATES.GAME_OVER && (
-                <GameOverScreen
-                    checkpointsPassed={checkpointsPassed}
-                    altitude={altitude}
-                    onRestart={resetGame}
-                />
+                <>
+                    <GameOverScreen
+                        checkpointsPassed={checkpointsPassed}
+                        altitude={altitude}
+                        onRestart={resetGame}
+                        onExit={handleExitGame}
+                    />
+                    <SurveyModal
+                        isOpen={isSurveyOpen}
+                        onClose={handleCloseSurvey}
+                        onPlayAgain={handlePlayAgain}
+                        gameSessionId={gameSessionId}
+                        currentGameId={gameId}
+                        userId={userId}
+                        age={age}
+                        urlParams={urlParams}
+                    />
+                </>
             )}
 
             {gameState === GAME_STATES.WIN && (
-                <WinScreen
-                    checkpointsPassed={checkpointsPassed}
-                    altitude={altitude}
-                    onRestart={resetGame}
-                />
+                <>
+                    <WinScreen
+                        checkpointsPassed={checkpointsPassed}
+                        altitude={altitude}
+                        onRestart={resetGame}
+                        onExit={handleExitGame}
+                    />
+                    <SurveyModal
+                        isOpen={isSurveyOpen}
+                        onClose={handleCloseSurvey}
+                        onPlayAgain={handlePlayAgain}
+                        gameSessionId={gameSessionId}
+                        currentGameId={gameId}
+                        userId={userId}
+                        age={age}
+                        urlParams={urlParams}
+                    />
+                </>
             )}
         </div>
     );

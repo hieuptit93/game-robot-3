@@ -1,7 +1,7 @@
 import React from 'react';
 import './GameOverScreen.css';
 
-const GameOverScreen = ({ checkpointsPassed, altitude, onRestart }) => {
+const GameOverScreen = ({ checkpointsPassed, altitude, onRestart, onExit }) => {
   const getGameOverReason = () => {
     if (altitude <= 0) {
       return {
@@ -22,6 +22,27 @@ const GameOverScreen = ({ checkpointsPassed, altitude, onRestart }) => {
 
   return (
     <div className="game-over-screen screen">
+      {onExit && (
+        <button
+          onClick={onExit}
+          style={{
+            position: 'fixed',
+            top: '16px',
+            left: '16px',
+            zIndex: 50,
+            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+            color: 'white',
+            padding: '8px 16px',
+            border: '1px solid #0ea5e9',
+            borderRadius: '4px',
+            cursor: 'pointer',
+            fontSize: '14px',
+            fontFamily: 'monospace'
+          }}
+        >
+          ← Thoát game
+        </button>
+      )}
       <div className="explosion-bg"></div>
       <div className="content">
         <div className="game-over-icon">{gameOverInfo.icon}</div>

@@ -23,11 +23,33 @@ const GameScreen = ({
   collisionCount,
   showExplosion,
   audioLevel,
-  streak
+  streak,
+  onExit
 
 }) => {
   return (
     <div className={`game-screen ${showCollision ? 'collision-screen' : ''}`}>
+      {onExit && (
+        <button
+          onClick={onExit}
+          style={{
+            position: 'fixed',
+            top: '90px',
+            left: '16px',
+            zIndex: 50,
+            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+            color: 'white',
+            padding: '8px 16px',
+            border: '1px solid #0ea5e9',
+            borderRadius: '4px',
+            cursor: 'pointer',
+            fontSize: '14px',
+            fontFamily: 'monospace'
+          }}
+        >
+          ← Thoát game
+        </button>
+      )}
       {/* Header */}
       <div className="game-header">
         <div className={`altitude-indicator ${altitude <= 2000 ? 'low-altitude' : ''}`}>
