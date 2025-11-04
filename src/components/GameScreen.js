@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import './GameScreen.css';
 import spaceshipImage from '../assets/images/spaceship.png';
+import useTextToSpeech from '../hooks/useTextToSpeech';
 
 const GameScreen = ({
   altitude,
@@ -27,6 +28,50 @@ const GameScreen = ({
   onExit
 
 }) => {
+  const { speak, isPlaying, isSupported, stop } = useTextToSpeech();
+  const previousWordRef = useRef(null);
+
+  // Kiểm tra xem VAD có đang hoạt động không
+  const isVADActive = isListening || isRecording || isProcessing || isWaitingForPronunciation;
+
+  // Tự động phát âm khi từ mới xuất hiện
+  useEffect(() => {
+    if (currentWordData.word && 
+        currentWordData.word !== previousWordRef.current && 
+        isSupported && 
+        !isVADActive) {
+      
+      // Delay nhỏ để đảm bảo UI đã render xong
+      const timer = setTimeout(() => {
+        speak(currentWordData.word, {
+          lang: 'en-US',
+          rate: 0.7,
+          pitch: 1
+        });
+      }, 500);
+
+      previousWordRef.current = currentWordData.word;
+      
+      return () => clearTimeout(timer);
+    }
+  }, [currentWordData.word, isSupported, isVADActive, speak]);
+
+  // Dừng TTS khi VAD bắt đầu hoạt động
+  useEffect(() => {
+    if (isVADActive && isPlaying) {
+      stop();
+    }
+  }, [isVADActive, isPlaying, stop]);
+
+  const handlePlayTTS = () => {
+    if (currentWordData.word && isSupported && !isVADActive) {
+      speak(currentWordData.word, {
+        lang: 'en-US',
+        rate: 0.7,
+        pitch: 1
+      });
+    }
+  };
   return (
     <div className={`game-screen ${showCollision ? 'collision-screen' : ''}`}>
       {onExit && (
@@ -197,6 +242,16 @@ const GameScreen = ({
       <div className="game-footer">
         <div className="footer-content">
           <div className="word-display">
+            {isSupported && (
+              <button 
+                className={`tts-button ${isPlaying ? 'playing' : ''} ${isVADActive ? 'disabled' : ''}`}
+                onClick={handlePlayTTS}
+                disabled={isPlaying || isVADActive}
+                title={isVADActive ? "Không thể phát âm khi đang nhận diện giọng nói" : "Nghe phát âm từ"}
+              >
+                {isVADActive ? '🔇' : isPlaying ? '🔊' : '🔉'}
+              </button>
+            )}
             <div className="word-container">
               <span className="current-word">{currentWordData.word}</span>
               <span className="phonetic-transcription">{currentWordData.phonetic}</span>
