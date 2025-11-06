@@ -9,6 +9,7 @@ import SurveyModal from './components/SurveyModal';
 import { usePronunciationScoring } from './hooks/usePronunciationScoring';
 import { useGameSounds } from './hooks/useGameSounds';
 import { supabase } from './lib/supabaseClient';
+import { trackGameEvent, trackGameError, trackUserAction, trackGameMetrics, setUserContext, trackUserSession } from './utils/datadog';
 
 const GAME_STATES = {
     START: 'start',
@@ -170,6 +171,39 @@ function App() {
             // noop
         }
     }, []);
+
+    // Set Datadog user context when userId is available
+    useEffect(() => {
+        if (userId) {
+            const userProperties = {};
+            
+            // Add age if available
+            if (age !== null) {
+                userProperties.age = age;
+            }
+            
+            // Add gameId if available
+            if (gameId !== null) {
+                userProperties.gameId = gameId;
+            }
+            
+            // Add any additional URL params as user properties
+            if (urlParams && Object.keys(urlParams).length > 0) {
+                userProperties.urlParams = urlParams;
+            }
+
+            setUserContext(userId, userProperties);
+            
+            // Track user session start
+            trackUserSession(userId, {
+                age,
+                gameId,
+                urlParams,
+                pageUrl: window.location.href,
+                referrer: document.referrer
+            });
+        }
+    }, [userId, age, gameId, urlParams]);
 
     // Create a game_session row only when game actually starts
     useEffect(() => {
@@ -336,6 +370,15 @@ function App() {
                         // Stop background music and VAD when time runs out
                         stopBackgroundMusic();
 
+                        // Track game over by timeout
+                        trackGameEvent('game_over_timeout', {
+                            gameId,
+                            finalScore: checkpointsPassed,
+                            finalAltitude: altitude,
+                            collisionCount,
+                            timestamp: Date.now()
+                        });
+
                         // Force stop VAD immediately
                         if (isListening) {
                             console.log('🛑 Force stopping VAD due to time out');
@@ -382,6 +425,16 @@ function App() {
                     }
                     
                     if (newAltitude <= 0) {
+                        // Track game over by altitude
+                        trackGameEvent('game_over_altitude', {
+                            gameId,
+                            finalScore: checkpointsPassed,
+                            finalAltitude: 0,
+                            collisionCount,
+                            timeRemaining: timeLeft,
+                            timestamp: Date.now()
+                        });
+
                         // Stop background music and VAD when altitude reaches 0
                         stopBackgroundMusic();
                         if (isListening) {
@@ -506,7 +559,27 @@ function App() {
             setAltitude(prev => prev + ALTITUDE_GAIN);
             setCheckpointsPassed(prev => {
                 const newCheckpoints = prev + 1;
+                
+                // Track correct answer
+                trackGameEvent('correct_answer', {
+                    gameId,
+                    word: currentWordData.word,
+                    checkpointsPassed: newCheckpoints,
+                    altitude: altitude + ALTITUDE_GAIN,
+                    pronunciationScore: lastResult?.total_score,
+                    timestamp: Date.now()
+                });
+
                 if (newCheckpoints >= WIN_SCORE) {
+                    // Track game win
+                    trackGameEvent('game_won', {
+                        gameId,
+                        finalScore: newCheckpoints,
+                        finalAltitude: altitude + ALTITUDE_GAIN,
+                        timeRemaining: timeLeft,
+                        timestamp: Date.now()
+                    });
+
                     // Stop background music and play win sound
                     stopBackgroundMusic();
                     setTimeout(() => {
@@ -599,8 +672,28 @@ function App() {
             setCollisionCount(prev => {
                 const newCount = prev + 1;
 
+                // Track wrong answer
+                trackGameEvent('wrong_answer', {
+                    gameId,
+                    word: currentWordData.word,
+                    collisionCount: newCount,
+                    altitude: altitude - ALTITUDE_LOSS,
+                    pronunciationScore: lastResult?.total_score,
+                    timestamp: Date.now()
+                });
+
                 // Kiểm tra nếu đã va chạm 5 lần
                 if (newCount >= 5) {
+                    // Track game over by collision
+                    trackGameEvent('game_over_collision', {
+                        gameId,
+                        finalScore: checkpointsPassed,
+                        finalAltitude: altitude - ALTITUDE_LOSS,
+                        collisionCount: newCount,
+                        timeRemaining: timeLeft,
+                        timestamp: Date.now()
+                    });
+
                     // Stop background music and play explosion sound
                     stopBackgroundMusic();
                     playExplosionSound();
@@ -735,6 +828,11 @@ function App() {
     }, [aviationWords, clearBlob, stopListening, handleStartListening]);
 
     const startGame = () => {
+        trackGameEvent('game_started', {
+            gameId,
+            age,
+            timestamp: Date.now()
+        });
         setGameState(GAME_STATES.INSTRUCTIONS);
     };
 
@@ -751,6 +849,15 @@ function App() {
         setShowExplosion(false);
         setCurrentWordData(aviationWords[Math.floor(Math.random() * aviationWords.length)]);
 
+        // Track game play start
+        trackGameEvent('gameplay_started', {
+            gameId,
+            age,
+            initialAltitude: INITIAL_ALTITUDE,
+            timeLimit: INITIAL_TIME,
+            timestamp: Date.now()
+        });
+
         // Start background music
         setTimeout(() => {
             playBackgroundMusic();
@@ -766,6 +873,10 @@ function App() {
                 await startListening();
             } catch (error) {
                 console.error('Start listening error:', error);
+                trackGameError(error, {
+                    action: 'start_listening',
+                    gameId
+                });
                 setIsWaitingForPronunciation(false);
             }
         }, 1000);
