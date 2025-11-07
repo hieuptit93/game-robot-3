@@ -11,7 +11,7 @@ export const initDatadog = () => {
     service: 'space-shooter-game',
     env: 'prod',
     // Specify a version number to identify the deployed version of your application in Datadog
-    version: process.env.REACT_APP_VERSION || '1.0.0',
+    version: '1.0.0',
     sessionSampleRate: 100,
     sessionReplaySampleRate: 100, // Giảm xuống để tiết kiệm bandwidth
     defaultPrivacyLevel: 'mask-user-input',
@@ -31,7 +31,7 @@ export const initDatadog = () => {
         event.context = {
           ...event.context,
           application: 'space-shooter-game',
-          environment: process.env.NODE_ENV
+          environment: 'prod'
         };
       }
       return event;
